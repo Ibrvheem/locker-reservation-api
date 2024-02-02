@@ -133,3 +133,14 @@ async def admin_login(user: AdminLogin):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@app.get("/lockers")
+async def lockers():
+    try:
+        response = supabase.table('lockers').select("*").execute()
+        locker_codes = [locker for locker in response]
+        return locker_codes
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
