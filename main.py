@@ -39,6 +39,10 @@ class AdminLogin(BaseModel):
     staffId: str
     password: str
         
+
+class EditProfile(BaseModel):
+    password: str
+    phone: str
     
 class Lockers(BaseModel):
     code: str
@@ -134,6 +138,16 @@ async def admin_login(user: AdminLogin):
         raise HTTPException(status_code=500, detail=str(e))
     
 
+@app.patch("/edit")
+async def editProfie():
+    try:
+        response = supabase.table('users').update({'password': 'Austrailia'}).eq('id', 1).execute()
+        
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/lockers")
 async def lockers():
     try:
@@ -144,3 +158,5 @@ async def lockers():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+
+
