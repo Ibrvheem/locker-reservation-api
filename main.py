@@ -57,27 +57,25 @@ async def users():
 
 @app.get("/lockers")
 async def lockers():
-    response = supabase.table('lockers').select("*").execute()
+    response = supabase.table('lockers').select("*").single.execute()
     user_data = response.data
     return user_data
 
 
+@app.get("/reservations")
+async def lockers():
+    try:
+        response = supabase.table('reservations').select("*, lockers(*)").execute()
+        locker_codes = [locker for locker in response]
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
 @app.post("/create_user")
 async def create_user(user: User):
-    # print(user)
-    # converted_data = {}
-    # for key, value in user.items():
-    #     if value is not None:
-    #         converted_data[key] = value
-    #     else:
-    #         converted_data[key] = {'value': None, 'isValid': False, 'errorText': f'{key.capitalize()} is required'}
-
-    #     print(converted_data)
-    # for col in user:
-        # if "value" in col[1]:
-        # print(col[1]["value"])
-    # user_data = [{col} for col in user]
-    # print(user_data)
     try:
         user_data = user.model_dump()
         print(user_data)
@@ -86,7 +84,7 @@ async def create_user(user: User):
         if "error" in response:
             print(response)
             raise HTTPException(status_code=500, detail=user["error"])
-        return {"message": "user created successfully"}
+        return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -96,17 +94,14 @@ async def create_user(user: User):
 async def login(user: UserLogin):
     try:
         user_login_data = user.model_dump()
-        print(user_login_data)
-        response = supabase.table("users").select("regNo", "password").match(user_login_data).execute()
-
-        # if "data" in response.model_dump() and response.model_dump()["data"] is not None:
-        response_data = response.data
-        print(len(response_data))
-        if len(response_data) == 1:
-            if user_login_data == response_data[0] :
-                return {"message": "User logged in successfully"}
-            
-        raise HTTPException(status_code=401, detail="Invalid registration number or password")
+        # print(user_login_data)
+        response = supabase.table("users").select("id, fullname, email, regNo, phone").eq("regNo", user_login_data["regNo"]).eq("password", user_login_data["password"]).execute()
+        if len(response.data) == 1:   
+                return response.data[0]
+        else:
+            print(response.data)
+            print(len(response.data))
+            raise HTTPException(status_code=401, detail="Invalid registration number or password")
     
     except HTTPException as http_err:
         raise http_err
@@ -118,18 +113,14 @@ async def login(user: UserLogin):
 @app.post("/admin_login")
 async def admin_login(user: AdminLogin):
     try:
-        user_login_data = user.model_dump()
-        print(user_login_data)
-        response = supabase.table("admin_users").select("staffId", "password").match(user_login_data).execute()
-
-        # if "data" in response.model_dump() and response.model_dump()["data"] is not None:
-        response_data = response.data
-        print(len(response_data))
-        if len(response_data) == 1:
-            if user_login_data == response_data[0] :
-                return {"message": "Admin logged in successfully"}
-            
-        raise HTTPException(status_code=401, detail="Invalid staff Id or password")
+        admin_login_data = user.model_dump()
+        response = supabase.table("admin_users").select("id, fullname, email, staffId, phone").eq("staffId", admin_login_data["staffId"]).eq("password", admin_login_data["password"]).execute()
+        if len(response.data) == 1:   
+                return response.data[0]
+        else:
+            print(response.data)
+            print(len(response.data))
+            raise HTTPException(status_code=401, detail="Invalid staff id or password")
     
     except HTTPException as http_err:
         raise http_err
@@ -148,15 +139,5 @@ async def editProfie():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/lockers")
-async def lockers():
-    try:
-        response = supabase.table('lockers').select("*").execute()
-        locker_codes = [locker for locker in response]
-        return locker_codes
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
 
 
