@@ -47,13 +47,38 @@ class EditProfile(BaseModel):
     phone: str
 
 
+
+class Profile(BaseModel):
+    id: int
+    old_password: Optional[str]
+    new_password: Optional[str]
+    phone: str
+
+
 class Lockers(BaseModel):
-    code: str
+    locker_id: str
 
 
 class Reservation(BaseModel):
     locker_id: int
     user_id: int
+
+
+class CreateReservation(BaseModel):
+    locker_id: int
+
+
+class ConfirmReservation(BaseModel):
+    locker_id: int
+
+
+class EndReservation(BaseModel):
+    locker_id: int
+
+
+# class ChangeReservation(BaseModel):
+#     status: str
+#     reservation_id: str
 
 
 # remove this in production
@@ -70,6 +95,25 @@ async def lockers():
     user_data = response.data
     return user_data
 
+@app.post("/lockers")
+async def add_lockers(lockers: Lockers):
+
+    try:
+        response = (
+            supabase.table("lockers")
+            .insert(
+                {
+                    "locker_id": lockers.locker_id,
+                }
+            )
+            .execute()
+        )
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+      
+
 
 @app.get("/reservations")
 async def get_reservations():
@@ -82,19 +126,43 @@ async def get_reservations():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/available_lockers")
+async def available_lockers():
+    try:
+        response = supabase.from_("lockers").select("*", "reservations(*)").execute()
+        # response = supabase.table("reservations").select("*").execute()
+        # locker_codes = [locker for locker in response]
+        return response
+
+    except Exception as e:
+        # return e
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/reservations/{user_id}")
+async def get_user_reservations(user_id: int):
+    try:
+        response = supabase.table("reservations").select("*").eq("user_id", user_id).execute()
+        return response.data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 def generate_locker_id():
     locker_id = str(uuid.uuid4().hex)[:10]
     return locker_id
 
 
-@app.post("/reservations")
+@app.post("/reservations/{user_id}")
 async def add_reservation(reservation: Reservation):
     unique_id = generate_locker_id()
     print(unique_id)
 
     try:
         response = (
-            supabase.table("users")
+            supabase.table("reservations")
             .insert(
                 {
                     "locker_id": reservation.locker_id,
@@ -108,7 +176,96 @@ async def add_reservation(reservation: Reservation):
 
     except Exception as e:
         print(e)
-        return e
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/reservations/{user_id}")
+async def delete_reservation(reservation: Reservation):
+    unique_id = generate_locker_id()
+    print(unique_id)
+
+    try:
+        response = (
+            supabase.table("reservations").delete().eq("locker_id", reservation.locker_id).execute()
+        )
+        return response
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/create_reservation/{user_id}")
+async def update_column(reservation: CreateReservation):
+    unique_id = generate_locker_id()
+    print(unique_id)
+    
+    try:
+        response = supabase.from_('reservations').update({ 'reservation_id': unique_id, "status": "Reserved" }).eq('locker_id', reservation.locker_id).execute()
+
+        if "error" in response:
+            print(response)
+            raise HTTPException(status_code=500, detail=reservation["error"])
+
+        return {"reservation_id": unique_id, "message": "Column updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/confirm_reservation")
+async def update_column(reservation: ConfirmReservation):
+    
+    try:
+        response = supabase.from_('reservations').update({  "status": "Ongoing" }).eq('locker_id', reservation.locker_id).execute()
+
+        if "error" in response:
+            print(response)
+            raise HTTPException(status_code=500, detail=reservation["error"])
+
+        return { "message": "Column updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/end_reservation")
+async def update_column(reservation: EndReservation):
+    
+    try:
+        response = supabase.from_('reservations').update({  "status": "Pending" }).eq('locker_id', reservation.locker_id).execute()
+        deleteReservation = supabase.from_('reservations').update({  "reservation_id": "" }).eq('locker_id', reservation.locker_id).execute()
+
+        if "error" in response:
+            print(response)
+            raise HTTPException(status_code=500, detail=reservation["error"])
+
+        return { "message": "Column updated successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# @app.put("/reservations")
+# async def update_reservation(reservation: ChangeReservation):
+
+#     try:
+#         response = (
+#             supabase.table("reservations")
+#             .update(
+#                 {
+#                     "status": reservation.status
+#                 }
+#             ).eq("reservation_id", reservation.reservation_id)
+#             .execute()
+#         )
+#         return response
+
+#     except Exception as e:
+#         print(e)
+#         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/create_user")
@@ -177,13 +334,6 @@ async def admin_login(user: AdminLogin):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-class Profile(BaseModel):
-    id: int
-    old_password: Optional[str]
-    new_password: Optional[str]
-    phone: str
 
 
 @app.patch("/edit")
