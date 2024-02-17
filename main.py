@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends
+from datetime import datetime, timedelta
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Annotated, Optional
@@ -91,7 +92,7 @@ async def users():
 
 @app.get("/lockers")
 async def lockers():
-    response = supabase.table("lockers").select("*").single.execute()
+    response = supabase.table("lockers").select("*").execute()
     user_data = response.data
     return user_data
 
@@ -156,7 +157,7 @@ def generate_locker_id():
 
 
 @app.post("/reservations/{user_id}")
-async def add_reservation(reservation: Reservation):
+async def add_reservation(reservation: Reservation, background_tasks: BackgroundTasks):
     unique_id = generate_locker_id()
     print(unique_id)
 
@@ -172,6 +173,7 @@ async def add_reservation(reservation: Reservation):
             )
             .execute()
         )
+        background_tasks.add_task(delete_expired_reservations)
         return response
 
     except Exception as e:
@@ -244,28 +246,6 @@ async def update_column(reservation: EndReservation):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-# @app.put("/reservations")
-# async def update_reservation(reservation: ChangeReservation):
-
-#     try:
-#         response = (
-#             supabase.table("reservations")
-#             .update(
-#                 {
-#                     "status": reservation.status
-#                 }
-#             ).eq("reservation_id", reservation.reservation_id)
-#             .execute()
-#         )
-#         return response
-
-#     except Exception as e:
-#         print(e)
-#         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @app.post("/create_user")
@@ -359,3 +339,24 @@ async def editProfie(profile: Profile):
     except Exception as e:
         print(e)
         return e
+
+
+async def delete_expired_reservations():
+    try:
+        # Calculate the datetime 1 minute ago
+        one_minute_ago = datetime.utcnow() - timedelta(seconds=20)
+        
+        # Query reservations that are older than 1 minute and have the "reserved" status
+        response = supabase.table("reservations").delete().lt("created_at", one_minute_ago).eq("status", "reserved").execute()
+        
+        # Log the number of deleted reservations
+        print(f"Deleted {response['count']} expired reservations")
+    except Exception as e:
+        print(f"Error deleting expired reservations: {e}")
+
+
+@app.post("/delete_expired_reservations")
+async def trigger_delete_expired_reservations(background_tasks: BackgroundTasks):
+    # Add the delete_expired_reservations function to the background tasks
+    background_tasks.add_task(delete_expired_reservations)
+    return {"message": "Deleting expired reservations in the background"}
