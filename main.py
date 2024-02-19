@@ -83,6 +83,11 @@ class EndReservation(BaseModel):
 
 
 # remove this in production
+@app.get("/")
+async def hello():
+    return {"message":"Hello"}
+
+
 @app.get("/users")
 async def users():
     response = supabase.table("users").select("*").execute()
