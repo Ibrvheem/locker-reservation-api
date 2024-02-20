@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Depends
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Annotated, Optional
@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import os
 import uuid
 from supabase import create_client, Client
+import asyncio
 
 load_dotenv()
 
@@ -83,6 +84,43 @@ class EndReservation(BaseModel):
 
 
 # remove this in production
+@app.websocket("/ws/update_user_reservation/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: int):
+    await websocket.accept()
+    while True:
+        await asyncio.sleep(5)  # Fetch data every 5 seconds
+        user_reservations = await get_user_reservations(user_id)
+        await websocket.send_json({"user_reservations": user_reservations})
+        
+async def get_user_reservations(user_id: int):
+    try:
+        response = supabase.table("reservations").select("*").eq("user_id", user_id).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.websocket("/ws/update_reservations/{admin_id}")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        await asyncio.sleep(5)  # Fetch data every 5 seconds
+        response = await get_reservations()
+        reservations = response.data
+        await websocket.send_json({"reservations": reservations})
+        
+
+async def get_reservations(admin_id: int):
+    try:
+        response = supabase.table("reservations").select("*").eq("id", admin_id).execute()
+        return response.data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 @app.get("/")
 async def hello():
     return {"message":"Hello"}
@@ -91,6 +129,13 @@ async def hello():
 @app.get("/users")
 async def users():
     response = supabase.table("users").select("*").execute()
+    user_data = response.data
+    return user_data
+
+
+@app.get("/admins")
+async def users():
+    response = supabase.table("admin_users").select("*").execute()
     user_data = response.data
     return user_data
 
@@ -234,23 +279,9 @@ async def update_column(reservation: ConfirmReservation):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    print(reservation)
 
 
-@app.put("/end_reservation")
-async def update_column(reservation: EndReservation):
-    
-    try:
-        response = supabase.from_('reservations').update({  "status": "Pending" }).eq('locker_id', reservation.locker_id).execute()
-        deleteReservation = supabase.from_('reservations').update({  "reservation_id": "" }).eq('locker_id', reservation.locker_id).execute()
-
-        if "error" in response:
-            print(response)
-            raise HTTPException(status_code=500, detail=reservation["error"])
-
-        return { "message": "Column updated successfully"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/create_user")
@@ -365,3 +396,13 @@ async def trigger_delete_expired_reservations(background_tasks: BackgroundTasks)
     # Add the delete_expired_reservations function to the background tasks
     background_tasks.add_task(delete_expired_reservations)
     return {"message": "Deleting expired reservations in the background"}
+
+
+# import time
+# async def verify_reservations():
+#     while True:
+#         time.sleep(1)
+#         print("sleeping")
+        
+# verify_reservations()
+        
