@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -377,32 +377,40 @@ async def editProfie(profile: Profile):
         return e
 
 
-async def delete_expired_reservations():
-    try:
-        # Calculate the datetime 1 minute ago
-        one_minute_ago = datetime.utcnow() - timedelta(seconds=20)
-        
-        # Query reservations that are older than 1 minute and have the "reserved" status
-        response = supabase.table("reservations").delete().lt("created_at", one_minute_ago).eq("status", "reserved").execute()
-        
-        # Log the number of deleted reservations
-        print(f"Deleted {response['count']} expired reservations")
-    except Exception as e:
-        print(f"Error deleting expired reservations: {e}")
+
+@app.get("/time_remaining/{locker_id}")
+async def get_remaining_time(locker_id: int):
+    response = supabase.from_("reservations").select("created_at").eq("locker_id", locker_id).execute()
+    time_data = response.data
+    for item in time_data:
+        created_at = datetime.fromisoformat(item['created_at'])
+        created_at = created_at.replace(tzinfo=timezone.utc)  # Make created_at timezone aware
+        print(created_at)
+        current_time = datetime.now(timezone.utc)  # Make datetime.now() timezone aware
+        time_difference = current_time - created_at
+        minutes_difference = int(time_difference.total_seconds() / 60)  # Convert seconds to minutes
+        return minutes_difference
+    
 
 
-@app.post("/delete_expired_reservations")
-async def trigger_delete_expired_reservations(background_tasks: BackgroundTasks):
-    # Add the delete_expired_reservations function to the background tasks
-    background_tasks.add_task(delete_expired_reservations)
-    return {"message": "Deleting expired reservations in the background"}
+@app.delete("/delete_reserved_row/{locker_id}")
+async def delete_reserved_row(locker_id: int):
+    response = supabase.from_("reservations").select("created_at").eq("locker_id", locker_id).execute()
+    time_data = response.data
+    for item in time_data:
+        created_at = datetime.fromisoformat(item['created_at'])
+        created_at = created_at.replace(tzinfo=timezone.utc)  # Make created_at timezone aware
+        print(created_at)
+        current_time = datetime.now(timezone.utc)  # Make datetime.now() timezone aware
+        time_difference = current_time - created_at
+        minutes_difference = int(time_difference.total_seconds() / 60)  # Convert seconds to minutes
+        print(f"Time difference: {minutes_difference} minutes")
+        if minutes_difference >= 15:
+            try:
+                response = supabase.table("reservations").delete().eq("locker_id", locker_id).eq("status", "Reserved").execute()
+                return response
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
 
 
-# import time
-# async def verify_reservations():
-#     while True:
-#         time.sleep(1)
-#         print("sleeping")
-        
-# verify_reservations()
-        
+
