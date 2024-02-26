@@ -202,7 +202,7 @@ async def get_user_reservations(user_id: int):
 
 
 def generate_locker_id():
-    locker_id = str(uuid.uuid4().hex)[:10]
+    locker_id = str(uuid.uuid4().hex)[:5]
     return locker_id
 
 
@@ -223,7 +223,7 @@ async def add_reservation(reservation: Reservation, background_tasks: Background
             )
             .execute()
         )
-        background_tasks.add_task(delete_expired_reservations)
+        # background_tasks.add_task(delete_expired_reservations)
         return response
 
     except Exception as e:
@@ -253,7 +253,7 @@ async def update_column(reservation: CreateReservation):
     print(unique_id)
     
     try:
-        response = supabase.from_('reservations').update({ 'reservation_id': unique_id, "status": "Reserved" }).eq('locker_id', reservation.locker_id).execute()
+        response = supabase.from_('reservations').update({ 'reservation_id': unique_id, "status": "Pending" }).eq('locker_id', reservation.locker_id).execute()
 
         if "error" in response:
             print(response)
@@ -269,7 +269,7 @@ async def update_column(reservation: CreateReservation):
 async def update_column(reservation: ConfirmReservation):
     
     try:
-        response = supabase.from_('reservations').update({  "status": "Ongoing" }).eq('locker_id', reservation.locker_id).execute()
+        response = supabase.from_('reservations').update({  "status": "Reserved" }).eq('locker_id', reservation.locker_id).execute()
 
         if "error" in response:
             print(response)
@@ -391,8 +391,8 @@ async def get_remaining_time(locker_id: int):
 
 last_updated_time = None  # Initialize last_updated_time outside the endpoint function
 
-@app.delete("/delete_reserved_row/{locker_id}")
-async def delete_reserved_row(locker_id: int):
+@app.delete("/delete_pending_row/{locker_id}")
+async def delete_pending_row(locker_id: int):
     global last_updated_time  # Access the last_updated_time variable
 
     # Get the current time
@@ -422,7 +422,7 @@ async def delete_reserved_row(locker_id: int):
 
                 if updated_time_remaining <= 0:
                     try:
-                        response = supabase.table("reservations").delete().eq("locker_id", locker_id).eq("status", "Reserved").execute()
+                        response = supabase.table("reservations").delete().eq("locker_id", locker_id).eq("status", "Pending").execute()
                         return response
                     except Exception as e:
                         raise HTTPException(status_code=500, detail=str(e))
@@ -432,57 +432,6 @@ async def delete_reserved_row(locker_id: int):
 
     # Return an appropriate response indicating that no deduction was made
     return {"message": "No deduction made this minute."}
-
-
-
-
-# @app.delete("/delete_reserved_row/{locker_id}")
-# async def delete_reserved_row(locker_id: int):
-#     response = supabase.from_("reservations").select("created_at", "time_remaining").eq("locker_id", locker_id).execute()
-#     time_data = response.data
-#     for item in time_data:
-#         created_at = datetime.fromisoformat(item['created_at'])
-#         created_at = created_at.replace(tzinfo=timezone.utc)  # Make created_at timezone aware
-#         time_remaining = item["time_remaining"]
-#         current_time = datetime.now(timezone.utc)  # Make datetime.now() timezone aware
-#         time_difference = current_time - created_at
-#         minutes_difference = int(time_difference.total_seconds() / 60)  # Convert seconds to minutes
-#         # print(f"Time difference: {minutes_difference} minutes")
-#         # print(minutes_difference)
-#         # return updated_time_remaining
-           
-#     if minutes_difference >= 1:
-#         updated_time_remaining = time_remaining - minutes_difference
-#         try:
-#             response = supabase.from_('reservations').update({ 'time_remaining': updated_time_remaining }).eq('locker_id', locker_id).execute()
-#             if "error" in response:
-#                 print(response)                
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=str(e))
-
-#     if updated_time_remaining <= 0:
-#         try:
-#             response = supabase.table("reservations").delete().eq("locker_id", locker_id).eq("status", "Reserved").execute()
-#             return response
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-# @app.get("/time_remaining/{locker_id}")
-# async def get_remaining_time(locker_id: int):
-#     response = supabase.from_("reservations").select("created_at").eq("locker_id", locker_id).execute()
-#     time_data = response.data
-#     for item in time_data:
-#         created_at = datetime.fromisoformat(item['created_at'])
-#         created_at = created_at.replace(tzinfo=timezone.utc)  # Make created_at timezone aware
-#         print(created_at)
-#         current_time = datetime.now(timezone.utc)  # Make datetime.now() timezone aware
-#         time_difference = current_time - created_at
-#         minutes_difference = int(time_difference.total_seconds() / 60)  # Convert seconds to minutes
-#         return minutes_difference
-    
 
 
 
