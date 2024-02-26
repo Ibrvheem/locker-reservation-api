@@ -88,7 +88,7 @@ class EndReservation(BaseModel):
 
 @app.get("/")
 async def hello():
-    return {"message":"Hello"
+    return {"message":"Hello"}
 
 
 
