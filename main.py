@@ -78,18 +78,10 @@ class EndReservation(BaseModel):
     locker_id: int
 
 
-# class ChangeReservation(BaseModel):
-#     status: str
-#     reservation_id: str
-
-
-
-
 
 @app.get("/")
 async def hello():
     return {"message":"Hello"}
-
 
 
 @app.get("/lockers")
@@ -133,8 +125,6 @@ async def get_reservations():
 async def available_lockers():
     try:
         response = supabase.from_("lockers").select("*", "reservations(*)").execute()
-        # response = supabase.table("reservations").select("*").execute()
-        # locker_codes = [locker for locker in response]
         return response
 
     except Exception as e:
